@@ -7,6 +7,10 @@ import connectfour.client.Observer;
 import connectfour.server.ConnectFour;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.event.ActionEvent;
+import javafx.event.EventHandler;
+import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -17,6 +21,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.awt.event.MouseEvent;
 import java.io.FileInputStream;
 import java.util.List;
 
@@ -29,7 +34,10 @@ import java.util.List;
  */
 public class ConnectFourGUI extends Application implements Observer<ConnectFourBoard> {
 
-    ConnectFourNetworkClient client;
+    private ConnectFourBoard board;
+    private ConnectFourNetworkClient client;
+    private static final int COL = 7;
+    private static final int ROW = 6;
 
     @Override
     public void init() throws ConnectFourException {
@@ -40,7 +48,7 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
             // get host info and port from command line
             String host = args.get(0);
             int port = Integer.parseInt(args.get(1));
-            ConnectFourBoard board = new ConnectFourBoard();
+            board = new ConnectFourBoard();
             client = new ConnectFourNetworkClient(host, port, board);
         } catch(NumberFormatException e) {
             System.err.println(e);
@@ -56,28 +64,36 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      */
     public void start( Stage stage ) throws Exception {
         Image image = new Image(new FileInputStream("/Users/cameronriu/Documents/Spring 2019/Comp Sci 2/Labs/lab08-cmr6689/src/connectfour/gui/empty.png"));
-        ImageView imgView = new ImageView(image);
-
-        VBox vbox = new VBox(imgView);
-
-        Button button = new Button("", vbox);
-        button.setPrefSize(64, 64);
-        button.centerShapeProperty();
-
-        Label label = new Label("Welcome");
-
+        VBox vbox = new VBox();
         GridPane gridPane = new GridPane();
-        //TODO
+
+        for (int row = 0; row < COL; row++) {
+            for (int col = 0; col < ROW; col++) {
+                //Button button = new Button("", new ImageView(image));
+                //vbox.getChildren().add(button);
+                vbox.getChildren().add(new ImageView(image));
+            }
+            Button button = new Button("", vbox);
+            button.setPadding(new Insets(1, 1, 1, 1));
+            gridPane.addColumn(row, button);
+            vbox = new VBox();
+        }
+
 
         BorderPane borderPane = new BorderPane();
-        borderPane.setPrefSize(500, 500);
-        borderPane.setCenter(button);
-        borderPane.setBottom(label);
+        borderPane.setPrefSize(456, 456);
+        borderPane.setCenter(gridPane);
 
         Scene scene = new Scene(borderPane);
         stage.setScene(scene);
         stage.show();
         client.startListener();
+        if (board.isMyTurn()) {
+            int loc = GridPane.getColumnIndex(vbox.getChildren().get(MouseEvent.MOUSE_CLICKED));
+            System.out.println(loc);
+            client.sendMove(loc);
+            client.moveMade(String.valueOf(loc));
+        }
     }
 
     /**
@@ -85,7 +101,7 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      */
     @Override
     public void stop() {
-        // TODO
+        client.close();
     }
 
     /**
