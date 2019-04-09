@@ -37,6 +37,11 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
     private Image p1;
     private Image p2;
 
+    /**
+     * Connect to the client, create the board instance,
+     * implement all global variables
+     * @throws ConnectFourException exception
+     */
     @Override
     public void init() throws ConnectFourException {
         try {
@@ -99,6 +104,12 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
         client.startListener();
     }
 
+    /**
+     * Event handler for when a button is pressed
+     * @param col - clicked column to send to server
+     * @return - sending a move to the client if it is my turn
+     * and if it is a valid move
+     */
     private EventHandler<ActionEvent> clickedButton(int col) {
         return event -> {
             if (board.isMyTurn()) {
@@ -109,6 +120,10 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
         };
     }
 
+    /**
+     * Helper method to disable all buttons when
+     * it is not the players turn
+     */
     private void disableButtons() {
         for (int row = 0; row <= ROW; row++) {
             for (int col = 0; col <= COL; col++) {
@@ -117,6 +132,10 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
         }
     }
 
+    /**
+     * Helper method to enable all buttons if it
+     * is the players turn
+     */
     private void enableButtons() {
         for (int row = 0; row <= ROW; row++) {
             for (int col = 0; col <= COL; col++) {
@@ -125,6 +144,10 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
         }
     }
 
+    /**
+     * This method checks the contents of the board and
+     * updates the image based on what players piece is there
+     */
     private void checkBoard() {
         for (int row = 0; row <= ROW; row++) {
             for (int col = 0; col <= COL; col++) {
