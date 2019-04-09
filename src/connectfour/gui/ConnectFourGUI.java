@@ -10,6 +10,7 @@ import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
@@ -19,10 +20,17 @@ import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.AudioClip;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+import javafx.scene.media.MediaView;
 import javafx.stage.Stage;
-
+import javax.sound.sampled.spi.AudioFileReader;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -30,17 +38,23 @@ import java.util.List;
  *
  * @author James Heloitis @ RIT CS
  * @author Sean Strout @ RIT CS
- * @author YOUR NAME HERE
+ * @author Cameron Riu
  */
-public class ConnectFourGUI extends Application implements Observer<ConnectFourBoard> {
+public class ConnectFourGUI extends Application implements Observer<ConnectFourBoard>{
 
     private ConnectFourBoard board;
     private ConnectFourNetworkClient client;
-    private static final int COL = 7;
-    private static final int ROW = 6;
+    private static final int COL = 6;
+    private static final int ROW = 5;
+    private Button[][] buttons;
+    private Label myTurn;
+    private ImageView p1;
+    private ImageView p2;
+    private boolean clicked;
+    private ConnectFourBoard.Move currentPiece;
 
     @Override
-    public void init() throws ConnectFourException {
+    public void init() throws ConnectFourException, FileNotFoundException {
         try {
             // get the command line args
             List<String> args = getParameters().getRaw();
@@ -48,8 +62,14 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
             // get host info and port from command line
             String host = args.get(0);
             int port = Integer.parseInt(args.get(1));
-            board = new ConnectFourBoard();
-            client = new ConnectFourNetworkClient(host, port, board);
+            this.board = new ConnectFourBoard();
+            this.board.addObserver(this);
+            this.client = new ConnectFourNetworkClient(host, port, board);
+            this.myTurn = new Label("");
+            this.p1 = new ImageView(new Image(getClass().getResourceAsStream("p1black.png")));
+            this.p2 = new ImageView(new Image(getClass().getResourceAsStream("p2red.png")));
+            this.currentPiece = ConnectFourBoard.Move.PLAYER_ONE;
+            this.clicked = false;
         } catch(NumberFormatException e) {
             System.err.println(e);
             throw new RuntimeException(e);
@@ -63,37 +83,45 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      * @throws Exception if there is a problem
      */
     public void start( Stage stage ) throws Exception {
-        Image image = new Image(new FileInputStream("/Users/cameronriu/Documents/Spring 2019/Comp Sci 2/Labs/lab08-cmr6689/src/connectfour/gui/empty.png"));
-        VBox vbox = new VBox();
+        Image image = new Image(getClass().getResourceAsStream("empty.png"));
         GridPane gridPane = new GridPane();
 
-        for (int row = 0; row < COL; row++) {
-            for (int col = 0; col < ROW; col++) {
-                //Button button = new Button("", new ImageView(image));
-                //vbox.getChildren().add(button);
-                vbox.getChildren().add(new ImageView(image));
-            }
-            Button button = new Button("", vbox);
-            button.setPadding(new Insets(1, 1, 1, 1));
-            gridPane.addColumn(row, button);
-            vbox = new VBox();
-        }
+        buttons = new Button[COL+1][ROW+1];
 
+        for (int row = 0; row <= ROW; row++) {
+            for (int col = 0; col <= COL; col++) {
+                buttons[col][row] = new Button("image");
+                buttons[col][row].setOnAction(clickedButton(col));
+                gridPane.add(buttons[col][row], col, row);
+            }
+        }
 
         BorderPane borderPane = new BorderPane();
         borderPane.setPrefSize(456, 456);
         borderPane.setCenter(gridPane);
 
+        myTurn.setAlignment(Pos.CENTER);
+        borderPane.setBottom(myTurn);
+
+
         Scene scene = new Scene(borderPane);
         stage.setScene(scene);
         stage.show();
         client.startListener();
-        if (board.isMyTurn()) {
-            int loc = GridPane.getColumnIndex(vbox.getChildren().get(MouseEvent.MOUSE_CLICKED));
-            System.out.println(loc);
-            client.sendMove(loc);
-            client.moveMade(String.valueOf(loc));
-        }
+
+
+
+    }
+
+    public EventHandler<ActionEvent> clickedButton(int col)  throws FileNotFoundException {
+        return event -> {
+            if (board.isMyTurn()) {
+                client.sendMove(col);
+                client.moveMade(String.valueOf(col));
+                board.moveMade(col);
+                clicked = true;
+            }
+        };
     }
 
     /**
@@ -108,7 +136,58 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      * Do your GUI updates here.
      */
     private void refresh() {
-        // TODO
+        if (!board.isMyTurn()) {
+            for (int row = 0; row <= ROW; row++) {
+                for (int col = 0; col <= COL; col++) {
+                    buttons[col][row].setDisable(true);
+                }
+            }
+            myTurn.setText("NOT YOUR TURN");
+            myTurn.setAlignment(Pos.CENTER);
+            ConnectFourBoard.Status status = board.getStatus();
+            switch (status) {
+                case ERROR:
+                    client.error("ERROR");
+                    break;
+            }
+            this.currentPiece = currentPiece.opponent();
+            clicked = false;
+        } else {
+            for (int row = 0; row <= ROW; row++) {
+                for (int col = 0; col <= COL; col++) {
+                    buttons[col][row].setDisable(false);
+                }
+            }
+            myTurn.setText("YOUR TURN");
+            myTurn.setAlignment(Pos.CENTER);
+            System.out.println("CLICKED");
+            for (int row = 0; row <= ROW; row++) {
+                for (int col = 0; col <= COL; col++) {
+                    if (board.getContents(row, col) == ConnectFourBoard.Move.PLAYER_ONE) {
+                        buttons[col][row] = new Button("", p1);
+                    }
+                }
+            }
+            this.currentPiece = currentPiece.opponent();
+            /*if (board.isMyTurn()) {
+                if (board.isValidMove(col)) {
+                    for (int i = ROW; i >= 0; i++) {
+                        if (board.getContents(i, col) == ConnectFourBoard.Move.NONE) {
+                            if (.equals(ConnectFourBoard.Move.PLAYER_ONE)) {
+                                buttons[col][i].setGraphic(p1);
+                            } else if (currentPiece.equals(ConnectFourBoard.Move.PLAYER_TWO)) {
+                                buttons[col][i].setGraphic(p2);
+                            }
+                            client.sendMove(col);
+                            board.moveMade(col);
+                            this.currentPiece = this.currentPiece.opponent();
+                            board.didMyTurn();
+                            break;
+                        }
+                    }
+                }
+            }*/
+        }
     }
 
     /**
