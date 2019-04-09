@@ -4,14 +4,10 @@ import connectfour.ConnectFourException;
 import connectfour.client.ConnectFourBoard;
 import connectfour.client.ConnectFourNetworkClient;
 import connectfour.client.Observer;
-import connectfour.server.ConnectFour;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -19,18 +15,7 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
-import javafx.scene.layout.VBox;
-import javafx.scene.media.AudioClip;
-import javafx.scene.media.Media;
-import javafx.scene.media.MediaPlayer;
-import javafx.scene.media.MediaView;
 import javafx.stage.Stage;
-import javax.sound.sampled.spi.AudioFileReader;
-import java.awt.event.MouseEvent;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
 import java.util.List;
 
 /**
@@ -47,14 +32,13 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
     private static final int COL = 6;
     private static final int ROW = 5;
     private Button[][] buttons;
-    private Label myTurn;
-    private ImageView p1;
-    private ImageView p2;
-    private boolean clicked;
-    private ConnectFourBoard.Move currentPiece;
+    private Label turnLabel;
+    private Label movesLeft;
+    private Image p1;
+    private Image p2;
 
     @Override
-    public void init() throws ConnectFourException, FileNotFoundException {
+    public void init() throws ConnectFourException {
         try {
             // get the command line args
             List<String> args = getParameters().getRaw();
@@ -65,11 +49,10 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
             this.board = new ConnectFourBoard();
             this.board.addObserver(this);
             this.client = new ConnectFourNetworkClient(host, port, board);
-            this.myTurn = new Label("");
-            this.p1 = new ImageView(new Image(getClass().getResourceAsStream("p1black.png")));
-            this.p2 = new ImageView(new Image(getClass().getResourceAsStream("p2red.png")));
-            this.currentPiece = ConnectFourBoard.Move.PLAYER_ONE;
-            this.clicked = false;
+            this.turnLabel = new Label("");
+            this.movesLeft = new Label("");
+            this.p1 = new Image(getClass().getResourceAsStream("p1black.png"));
+            this.p2 = new Image(getClass().getResourceAsStream("p2red.png"));
         } catch(NumberFormatException e) {
             System.err.println(e);
             throw new RuntimeException(e);
@@ -82,7 +65,7 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      * @param stage container (window) in which to render the GUI
      * @throws Exception if there is a problem
      */
-    public void start( Stage stage ) throws Exception {
+    public void start( Stage stage ) {
         Image image = new Image(getClass().getResourceAsStream("empty.png"));
         GridPane gridPane = new GridPane();
 
@@ -90,7 +73,8 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
 
         for (int row = 0; row <= ROW; row++) {
             for (int col = 0; col <= COL; col++) {
-                buttons[col][row] = new Button("image");
+                buttons[col][row] = new Button();
+                buttons[col][row].setGraphic(new ImageView(image));
                 buttons[col][row].setOnAction(clickedButton(col));
                 gridPane.add(buttons[col][row], col, row);
             }
@@ -100,28 +84,56 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
         borderPane.setPrefSize(456, 456);
         borderPane.setCenter(gridPane);
 
-        myTurn.setAlignment(Pos.CENTER);
-        borderPane.setBottom(myTurn);
-
+        turnLabel.setText("NOT YOUR TURN");
+        movesLeft.setText("MOVES LEFT: " + board.getMovesLeft());
+        BorderPane labels = new BorderPane();
+        labels.setLeft(turnLabel);
+        labels.setRight(movesLeft);
+        borderPane.setBottom(labels);
 
         Scene scene = new Scene(borderPane);
         stage.setScene(scene);
+        stage.setTitle("Connect Four");
         stage.show();
         client.startListener();
-
-
-
     }
 
-    public EventHandler<ActionEvent> clickedButton(int col)  throws FileNotFoundException {
+    private EventHandler<ActionEvent> clickedButton(int col) {
         return event -> {
             if (board.isMyTurn()) {
-                client.sendMove(col);
-                client.moveMade(String.valueOf(col));
-                board.moveMade(col);
-                clicked = true;
+                if (board.isValidMove(col)) {
+                    client.sendMove(col);
+                }
             }
         };
+    }
+
+    private void disableButtons() {
+        for (int row = 0; row <= ROW; row++) {
+            for (int col = 0; col <= COL; col++) {
+                buttons[col][row].setDisable(true);
+            }
+        }
+    }
+
+    private void enableButtons() {
+        for (int row = 0; row <= ROW; row++) {
+            for (int col = 0; col <= COL; col++) {
+                buttons[col][row].setDisable(false);
+            }
+        }
+    }
+
+    private void checkBoard() {
+        for (int row = 0; row <= ROW; row++) {
+            for (int col = 0; col <= COL; col++) {
+                if (board.getContents(row, col) == ConnectFourBoard.Move.PLAYER_ONE) {
+                    buttons[col][row].setGraphic(new ImageView(p1));
+                } else if (board.getContents(row, col) == ConnectFourBoard.Move.PLAYER_TWO) {
+                    buttons[col][row].setGraphic(new ImageView(p2));
+                }
+            }
+        }
     }
 
     /**
@@ -137,56 +149,31 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      */
     private void refresh() {
         if (!board.isMyTurn()) {
-            for (int row = 0; row <= ROW; row++) {
-                for (int col = 0; col <= COL; col++) {
-                    buttons[col][row].setDisable(true);
-                }
-            }
-            myTurn.setText("NOT YOUR TURN");
-            myTurn.setAlignment(Pos.CENTER);
+            disableButtons();
+            turnLabel.setText("NOT YOUR TURN");
+            movesLeft.setText("MOVES LEFT: " + board.getMovesLeft());
+            checkBoard();
             ConnectFourBoard.Status status = board.getStatus();
             switch (status) {
                 case ERROR:
                     client.error("ERROR");
+                    turnLabel.setText("ERROR");
+                    break;
+                case I_WON:
+                    turnLabel.setText("YOU WON");
+                    break;
+                case I_LOST:
+                    turnLabel.setText("YOU LOST");
+                    break;
+                case TIE:
+                    turnLabel.setText("YOU TIED");
                     break;
             }
-            this.currentPiece = currentPiece.opponent();
-            clicked = false;
         } else {
-            for (int row = 0; row <= ROW; row++) {
-                for (int col = 0; col <= COL; col++) {
-                    buttons[col][row].setDisable(false);
-                }
-            }
-            myTurn.setText("YOUR TURN");
-            myTurn.setAlignment(Pos.CENTER);
-            System.out.println("CLICKED");
-            for (int row = 0; row <= ROW; row++) {
-                for (int col = 0; col <= COL; col++) {
-                    if (board.getContents(row, col) == ConnectFourBoard.Move.PLAYER_ONE) {
-                        buttons[col][row] = new Button("", p1);
-                    }
-                }
-            }
-            this.currentPiece = currentPiece.opponent();
-            /*if (board.isMyTurn()) {
-                if (board.isValidMove(col)) {
-                    for (int i = ROW; i >= 0; i++) {
-                        if (board.getContents(i, col) == ConnectFourBoard.Move.NONE) {
-                            if (.equals(ConnectFourBoard.Move.PLAYER_ONE)) {
-                                buttons[col][i].setGraphic(p1);
-                            } else if (currentPiece.equals(ConnectFourBoard.Move.PLAYER_TWO)) {
-                                buttons[col][i].setGraphic(p2);
-                            }
-                            client.sendMove(col);
-                            board.moveMade(col);
-                            this.currentPiece = this.currentPiece.opponent();
-                            board.didMyTurn();
-                            break;
-                        }
-                    }
-                }
-            }*/
+            enableButtons();
+            turnLabel.setText("YOUR TURN");
+            movesLeft.setText("MOVES LEFT: " + board.getMovesLeft());
+            checkBoard();
         }
     }
 
