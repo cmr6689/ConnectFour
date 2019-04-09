@@ -65,7 +65,7 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      * @param stage container (window) in which to render the GUI
      * @throws Exception if there is a problem
      */
-    public void start( Stage stage ) {
+    public void start( Stage stage ) throws Exception {
         Image image = new Image(getClass().getResourceAsStream("empty.png"));
         GridPane gridPane = new GridPane();
 
@@ -79,6 +79,7 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
                 gridPane.add(buttons[col][row], col, row);
             }
         }
+        disableButtons();
 
         BorderPane borderPane = new BorderPane();
         borderPane.setPrefSize(456, 456);
@@ -181,7 +182,7 @@ public class ConnectFourGUI extends Application implements Observer<ConnectFourB
      * Called by the model, client.ConnectFourBoard, whenever there is a state change
      * that needs to be updated by the GUI.
      *
-     * @param connectFourBoard
+     * @param connectFourBoard board
      */
     @Override
     public void update(ConnectFourBoard connectFourBoard) {
